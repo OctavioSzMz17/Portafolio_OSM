@@ -76,16 +76,16 @@ button{font:inherit;color:inherit}
 /* ---------- diapositivas ---------- */
 #deck{position:fixed;inset:0;z-index:2;--dir:1}
 .slide{position:absolute;inset:0;opacity:0;visibility:hidden;transform:translateY(calc(var(--dir) * 7vh)) scale(.985);filter:blur(6px);transition:opacity .7s ease,transform .9s var(--ease),filter .7s ease,visibility 0s linear .9s}
-.slide.active{opacity:1;visibility:visible;transform:none;filter:none;transition:opacity .8s ease .12s,transform 1s var(--ease) .08s,filter .8s ease .08s,visibility 0s}
+.slide.active{opacity:1;visibility:visible;transform:none;filter:none;transition:opacity .45s ease,transform .6s var(--ease),filter .45s ease,visibility 0s}
 .slide.leaving{opacity:0;visibility:visible;transform:translateY(calc(var(--dir) * -7vh)) scale(.985);filter:blur(6px);transition:opacity .6s ease,transform .9s var(--ease),filter .6s ease,visibility 0s linear .9s}
 .si{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;padding:calc(92px + env(safe-area-inset-top,0px)) var(--pad) calc(110px + env(safe-area-inset-bottom,0px));scrollbar-width:none}
 .si::-webkit-scrollbar{display:none}
 .sc{margin:auto 0;width:100%;max-width:1240px;align-self:center}
 .stg{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .8s var(--ease)}
-.slide.active .stg,.detail.open .stg{opacity:1;transform:none;transition-delay:calc(var(--s,0) * 90ms + 380ms)}
+.slide.active .stg,.detail.open .stg{opacity:1;transform:none;transition-delay:calc(var(--s,0) * 60ms + 120ms)}
 .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.12em;margin-bottom:-.12em}
 .w>span{display:inline-block;transform:translateY(112%);transition:transform .9s var(--ease)}
-.slide.active .w>span,.detail.open .w>span{transform:none;transition-delay:calc(var(--i) * 55ms + 260ms)}
+.slide.active .w>span,.detail.open .w>span{transform:none;transition-delay:calc(var(--i) * 40ms + 80ms)}
 
 h2.big{font:400 clamp(36px,min(6.4vw,10vh),92px)/1 var(--serif);letter-spacing:-.015em;max-width:14em}
 .intro{margin-top:20px;max-width:36em;color:var(--soft);font-size:clamp(16px,1.4vw,19px)}
@@ -856,7 +856,7 @@ var MEDIA = {
   var root = document.documentElement;
   var sysRM = window.matchMedia("(prefers-reduced-motion: reduce)").matches, motionPref = null;
   try { motionPref = localStorage.getItem("motion"); } catch (e) {}
-  var RM = motionPref === "full" ? false : motionPref === "reduced" ? true : sysRM;
+  var RM = motionPref === "reduced"; // animaciones activadas por defecto
   if (RM) root.classList.add("rm");
   function $(s, c) { return (c || document).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
@@ -1503,13 +1503,9 @@ var MEDIA = {
       if (e.pointerType !== "mouse") return;
       if (!RM) magnify(i);
       if (i === cur || RM) return;
-      b.classList.add("dwell");
       clearTimeout(dwellT);
-      dwellT = setTimeout(function fire() {
-        if (!b.classList.contains("dwell")) return;
-        if (lock || detailOpen) { dwellT = setTimeout(fire, 120); return; }
-        b.classList.remove("dwell"); landed(b); go(i);
-      }, 700);
+      if (detailOpen) return;
+      landed(b); go(i, false, true); // cambio instantáneo al pasar el mouse
     });
     b.addEventListener("pointerleave", function () { clearTimeout(dwellT); b.classList.remove("dwell"); });
   });
@@ -1549,8 +1545,10 @@ var MEDIA = {
     $(".si", s).scrollTop = 0;
     try { history.replaceState(null, "", "#" + s.id); } catch (e) {}
   }
-  function go(i, viaStep) {
-    if (i < 0 || i >= slides.length || i === cur || lock) return;
+  var lockT = null;
+  function go(i, viaStep, force) {
+    if (i < 0 || i >= slides.length || i === cur || (lock && !force)) return;
+    slides.forEach(function (s) { s.classList.remove("leaving"); });
     var dir = i > cur ? 1 : -1, old = slides[cur], nw = slides[i];
     if (viaStep && WHEELS[nw.id]) WHEELS[nw.id].set(dir > 0 ? 0 : WHEELS[nw.id].size - 1, dir, true);
     lock = true;
@@ -1563,7 +1561,7 @@ var MEDIA = {
     setTimeout(function () { old.classList.remove("leaving"); }, 950);
     cur = i; hud(); enter(nw, dir);
     if (!moved) { moved = true; $("#hint").classList.add("gone"); }
-    setTimeout(function () { lock = false; }, RM ? 80 : 1000);
+    clearTimeout(lockT); lockT = setTimeout(function () { lock = false; }, RM ? 80 : 1000);
   }
 
   // estado inicial (permite enlazar a #proyectos, etc.)
@@ -1575,7 +1573,7 @@ var MEDIA = {
   var mb = $("#mbtn");
   if (sysRM || motionPref) {
     mb.hidden = false;
-    mb.textContent = RM ? "Movimiento reducido por tu sistema. Activar animaciones" : "Reducir animaciones";
+    mb.textContent = RM ? "Activar animaciones" : "Reducir animaciones";
     mb.classList.toggle("ask", RM);
   }
   mb.addEventListener("click", function () {
@@ -1758,7 +1756,7 @@ var MEDIA = {
   $("#xclose").addEventListener("click", closeDrawer);
   // cerrar el panel al cambiar de diapositiva
   var _go = go;
-  go = function (i, f) { if (drawerOpen && i !== cur) closeDrawer(); _go(i, f); };
+  go = function (i, f, force) { if (drawerOpen && i !== cur) closeDrawer(); _go(i, f, force); };
   function advance(dir) {
     var wh = WHEELS[slides[cur].id];
     if (wh && !detailOpen) {
